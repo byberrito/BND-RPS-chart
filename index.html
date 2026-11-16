@@ -73,40 +73,12 @@
 // Members, in the order you want them on the grid.
 const MEMBERS = ["Sungho", "Riwoo", "Jaehyun", "Taesan", "Leehan", "Woonhak"];
 
-// Optional: your own names for pairings, written as "Member+Member" in the same
-// order as MEMBERS above. Anything you leave out just shows the two names.
+// Optional: your own names for pairings, written as "Member+Member".
+// Order matters: "Sungho+Riwoo" is the cell in Sungho's ROW under Riwoo's COLUMN,
+// and "Riwoo+Sungho" is a different cell with its own name and rating.
+// Anything you leave out just shows the two names.
 // Example:  "Sungho+Riwoo": "your ship name",
 const PAIR_NAMES = {
-  "Sungho+Riwoo": "Sungring",
-  "Sungho+Jaehyun": "Sungdaeng",
-  "Sungho+Taesan": "Sungtaes",
-  "Sungho+Leehan": "Sungih",
-  "Sungho+Woonhak": "Sunghak",
-  "Riwoo+Sungho": "Ringsung",
-  "Riwoo+Jaehyun": "Ringmeong",
-  "Riwoo+Taesan": "Ryutaes",
-  "Riwoo+Leehan": "Ringih",
-  "Riwoo+Woonhak": "Ringhak",
-  "Jaehyun+Sungho": "Daengsung",
-  "Jaehyun+Riwoo": "Meongring",
-  "Jaehyun+Taesan": "Meongtaes",
-  "Jaehyun+Leehan": "Daenghan",
-  "Jaehyun+Woonhak": "Daenghak",
-  "Taesan+Sungho": "Taessung",
-  "Taesan+Riwoo": "Taesring",
-  "Taesan+Jaehyun": "Taesjae",
-  "Taesan+Leehan": "Taeshan",
-  "Taesan+Woonhak": "Taeswoon",
-  "Leehan+Sungho": "Ihsung",
-  "Leehan+Riwoo": "Ihring",
-  "Leehan+Jaehyun": "Handaeng",
-  "Leehan+Taesan": "Hantaes",
-  "Leehan+Woonhak": "Rihak",
-  "Woonhak+Sungho": "Naksung",
-  "Woonhak+Riwoo": "Nakring",
-  "Woonhak+Jaehyun": "Woondaeng",
-  "Woonhak+Taesan": "Woontaes",
-  "Woonhak+Leehan": "Woonih"
 };
 
 // The choices people can pick for each pairing. Change the labels or colors freely.
@@ -125,11 +97,10 @@ let state = {};
 try { state = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { state = {}; }
 const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
 
-const pairKey = (a, b) => (a < b ? a + "-" + b : b + "-" + a);
+const pairKey = (a, b) => a + "-" + b;
 const ratingOf = (a, b) => RATINGS.find(r => r.id === state[pairKey(a, b)]) || null;
 function customName(a, b) {
-  const [x, y] = a < b ? [a, b] : [b, a];
-  return PAIR_NAMES[MEMBERS[x] + "+" + MEMBERS[y]] || null;
+  return PAIR_NAMES[MEMBERS[a] + "+" + MEMBERS[b]] || null;
 }
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -150,7 +121,7 @@ function render() {
       if (i === j) { g.appendChild(el("div", "self")); continue; }
       const b = el("button", "cell");
       const name = customName(i, j);
-      b.textContent = name || MEMBERS[Math.min(i, j)] + " + " + MEMBERS[Math.max(i, j)];
+      b.textContent = name || MEMBERS[i] + " + " + MEMBERS[j];
       const r = ratingOf(i, j);
       if (r) { b.style.background = r.color; b.style.color = r.text; }
       b.addEventListener("click", () => openPicker(i, j));
@@ -168,7 +139,7 @@ function render() {
 }
 
 function openPicker(i, j) {
-  const a = Math.min(i, j), b = Math.max(i, j);
+  const a = i, b = j;
   $("#pickerTitle").textContent = customName(a, b) || MEMBERS[a] + " + " + MEMBERS[b];
   const box = $("#opts");
   box.innerHTML = "";
@@ -245,10 +216,10 @@ function drawChart() {
         fitText(ctx, name, w - 16, 22, "bold");
         ctx.fillText(name, x + w / 2, y + h / 2);
       } else {
-        fitText(ctx, MEMBERS[Math.min(i, j)], w - 16, 20, "bold");
-        ctx.fillText(MEMBERS[Math.min(i, j)], x + w / 2, y + h / 2 - 14);
-        fitText(ctx, "+ " + MEMBERS[Math.max(i, j)], w - 16, 20, "bold");
-        ctx.fillText("+ " + MEMBERS[Math.max(i, j)], x + w / 2, y + h / 2 + 14);
+        fitText(ctx, MEMBERS[i], w - 16, 20, "bold");
+        ctx.fillText(MEMBERS[i], x + w / 2, y + h / 2 - 14);
+        fitText(ctx, "+ " + MEMBERS[j], w - 16, 20, "bold");
+        ctx.fillText("+ " + MEMBERS[j], x + w / 2, y + h / 2 + 14);
       }
     }
   }
