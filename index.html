@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BOYNEXTDOOR Ship Chart</title>
+<style>
+  :root { --ink:#2b2b3a; --bg:#f6f4ff; --card:#ffffff; --accent:#7c6cf0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 14px 60px; }
+  h1 { margin: 0 0 4px; font-size: 1.6rem; }
+  .sub { margin: 0 0 18px; opacity: .7; }
+  .controls { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:16px; }
+  .controls input[type=text] { padding:8px 10px; border:1px solid #d6d2ee; border-radius:8px; font-size:.95rem; }
+  .controls label { font-size:.9rem; display:flex; gap:6px; align-items:center; }
+  button { font: inherit; cursor: pointer; }
+  .btn { padding:8px 14px; border-radius:8px; border:0; background:var(--accent); color:#fff; font-weight:600; }
+  .btn.ghost { background:#e6e2fb; color:var(--ink); }
+  #grid { display:grid; gap:6px; background:var(--card); padding:10px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.12); overflow-x:auto; }
+  .head { display:flex; align-items:center; justify-content:center; font-weight:700; font-size:.85rem; padding:6px 4px; }
+  .cell { min-height:62px; border-radius:10px; border:0; background:#efecfb; color:var(--ink); font-size:.72rem; line-height:1.2; padding:4px; }
+  .cell:hover { outline:2px solid var(--accent); }
+  .self { background:repeating-linear-gradient(45deg,#f3f1fb,#f3f1fb 6px,#ebe8f8 6px,#ebe8f8 12px); border-radius:10px; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; font-size:.85rem; }
+  .legend span { display:flex; gap:6px; align-items:center; }
+  .legend i { width:14px; height:14px; border-radius:4px; display:inline-block; }
+  dialog { border:0; border-radius:14px; padding:18px; box-shadow:0 8px 30px rgba(0,0,0,.25); max-width:92vw; }
+  dialog::backdrop { background:rgba(30,20,60,.45); }
+  dialog h2 { margin:0 0 12px; font-size:1.05rem; }
+  .opts { display:grid; gap:8px; }
+  .opts button { padding:10px 14px; border-radius:10px; border:0; font-weight:600; }
+  #preview { max-width:100%; max-height:70vh; border-radius:8px; display:block; margin-bottom:12px; }
+  .note { margin-top:22px; font-size:.8rem; opacity:.6; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BOYNEXTDOOR ship chart</h1>
+  <p class="sub">Tap a pairing to rate it, then save your chart as a picture.</p>
+
+  <div class="controls">
+    <input type="text" id="chartTitle" value="My BOYNEXTDOOR ship chart" aria-label="Chart title">
+    <input type="text" id="handle" placeholder="@yourhandle (optional)" aria-label="Your handle">
+    <label><input type="checkbox" id="showDate" checked> show date</label>
+    <button class="btn" id="saveBtn">Save image</button>
+    <button class="btn ghost" id="resetBtn">Reset</button>
+  </div>
+
+  <div id="grid"></div>
+  <div class="legend" id="legend"></div>
+  <p class="note">Fan-made, just for fun. Your picks are saved only in this browser.</p>
+</main>
+
+<dialog id="picker">
+  <h2 id="pickerTitle"></h2>
+  <div class="opts" id="opts"></div>
+</dialog>
+
+<dialog id="saved">
+  <h2>Your chart is ready</h2>
+  <img id="preview" alt="Your saved chart">
+  <div class="controls">
+    <a class="btn" id="download" download="boynextdoor-ship-chart.png">Download</a>
+    <button class="btn ghost" id="closeSaved">Close</button>
+  </div>
+  <p class="note">On a phone? Press and hold the picture to save it.</p>
+</dialog>
+
+<script>
+/* ===== EDIT THESE ===== */
+
+// Members, in the order you want them on the grid.
+const MEMBERS = ["Sungho", "Riwoo", "Jaehyun", "Taesan", "Leehan", "Woonhak"];
+
+// Optional: your own names for pairings, written as "Member+Member" in the same
+// order as MEMBERS above. Anything you leave out just shows the two names.
+// Example:  "Sungho+Riwoo": "your ship name",
+const PAIR_NAMES = {
+};
+
+// The choices people can pick for each pairing. Change the labels or colors freely.
+const RATINGS = [
+  { id: "otp",  label: "OTP",               color: "#ff6fa5", text: "#ffffff" },
+  { id: "like", label: "Like it",           color: "#ffb36b", text: "#3a2410" },
+  { id: "meh",  label: "Don't really care", color: "#c9cfdd", text: "#2b2b3a" },
+  { id: "hate", label: "Hate it",           color: "#5d6b8a", text: "#ffffff" }
+];
+/* ===== END EDIT ===== */
+
+const $ = s => document.querySelector(s);
+const n = MEMBERS.length;
+const STORE = "bnd-ship-chart";
+let state = {};
+try { state = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { state = {}; }
+const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+
+const pairKey = (a, b) => (a < b ? a + "-" + b : b + "-" + a);
+const ratingOf = (a, b) => RATINGS.find(r => r.id === state[pairKey(a, b)]) || null;
+function customName(a, b) {
+  const [x, y] = a < b ? [a, b] : [b, a];
+  return PAIR_NAMES[MEMBERS[x] + "+" + MEMBERS[y]] || null;
+}
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text) e.textContent = text;
+  return e;
+};
+
+function render() {
+  const g = $("#grid");
+  g.innerHTML = "";
+  g.style.gridTemplateColumns = "auto repeat(" + n + ", minmax(70px, 1fr))";
+  g.appendChild(el("div"));
+  MEMBERS.forEach(m => g.appendChild(el("div", "head", m)));
+  for (let i = 0; i < n; i++) {
+    g.appendChild(el("div", "head", MEMBERS[i]));
+    for (let j = 0; j < n; j++) {
+      if (i === j) { g.appendChild(el("div", "self")); continue; }
+      const b = el("button", "cell");
+      const name = customName(i, j);
+      b.textContent = name || MEMBERS[Math.min(i, j)] + " + " + MEMBERS[Math.max(i, j)];
+      const r = ratingOf(i, j);
+      if (r) { b.style.background = r.color; b.style.color = r.text; }
+      b.addEventListener("click", () => openPicker(i, j));
+      g.appendChild(b);
+    }
+  }
+  const lg = $("#legend");
+  lg.innerHTML = "";
+  RATINGS.forEach(r => {
+    const s = el("span");
+    const sw = el("i"); sw.style.background = r.color;
+    s.appendChild(sw); s.appendChild(document.createTextNode(r.label));
+    lg.appendChild(s);
+  });
+}
+
+function openPicker(i, j) {
+  const a = Math.min(i, j), b = Math.max(i, j);
+  $("#pickerTitle").textContent = customName(a, b) || MEMBERS[a] + " + " + MEMBERS[b];
+  const box = $("#opts");
+  box.innerHTML = "";
+  RATINGS.forEach(r => {
+    const btn = el("button", "", r.label);
+    btn.style.background = r.color; btn.style.color = r.text;
+    btn.addEventListener("click", () => { state[pairKey(a, b)] = r.id; persist(); render(); $("#picker").close(); });
+    box.appendChild(btn);
+  });
+  const clear = el("button", "", "Clear");
+  clear.style.background = "#efecfb";
+  clear.addEventListener("click", () => { delete state[pairKey(a, b)]; persist(); render(); $("#picker").close(); });
+  box.appendChild(clear);
+  $("#picker").showModal();
+}
+
+/* ----- image export (drawn on a canvas, no libraries needed) ----- */
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function fitText(ctx, text, maxW, size, weight) {
+  let s = size;
+  do { ctx.font = weight + " " + s + "px system-ui, sans-serif"; s -= 1; }
+  while (ctx.measureText(text).width > maxW && s > 10);
+}
+
+function drawChart() {
+  const PAD = 40, SIDE = 150, CW = 150, CH = 110, TOP = 130, HEAD = 70, FOOT = 120, GAP = 8;
+  const W = PAD * 2 + SIDE + n * CW;
+  const H = TOP + HEAD + n * CH + FOOT;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d");
+
+  ctx.fillStyle = "#f6f4ff"; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = "#2b2b3a"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+  const title = $("#chartTitle").value.trim() || "BOYNEXTDOOR ship chart";
+  fitText(ctx, title, W - PAD * 2, 44, "bold");
+  ctx.fillText(title, PAD, 55);
+
+  const bits = [];
+  const handle = $("#handle").value.trim();
+  if (handle) bits.push(handle);
+  if ($("#showDate").checked) bits.push(new Date().toLocaleDateString());
+  ctx.font = "22px system-ui, sans-serif"; ctx.globalAlpha = 0.65;
+  ctx.fillText(bits.join("  ·  "), PAD, 100); ctx.globalAlpha = 1;
+
+  ctx.textAlign = "center";
+  for (let k = 0; k < n; k++) {
+    fitText(ctx, MEMBERS[k], CW - 12, 24, "bold");
+    ctx.fillStyle = "#2b2b3a";
+    ctx.fillText(MEMBERS[k], PAD + SIDE + k * CW + CW / 2, TOP + HEAD / 2);
+    fitText(ctx, MEMBERS[k], SIDE - 12, 24, "bold");
+    ctx.fillText(MEMBERS[k], PAD + SIDE / 2, TOP + HEAD + k * CH + CH / 2);
+  }
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const x = PAD + SIDE + j * CW + GAP / 2, y = TOP + HEAD + i * CH + GAP / 2;
+      const w = CW - GAP, h = CH - GAP;
+      if (i === j) { ctx.fillStyle = "#e4e0f5"; roundRect(ctx, x, y, w, h, 14); ctx.fill(); continue; }
+      const r = ratingOf(i, j);
+      ctx.fillStyle = r ? r.color : "#ffffff";
+      roundRect(ctx, x, y, w, h, 14); ctx.fill();
+      if (!r) { ctx.strokeStyle = "#d6d2ee"; ctx.lineWidth = 2; ctx.stroke(); }
+      ctx.fillStyle = r ? r.text : "#2b2b3a";
+      const name = customName(i, j);
+      if (name) {
+        fitText(ctx, name, w - 16, 22, "bold");
+        ctx.fillText(name, x + w / 2, y + h / 2);
+      } else {
+        fitText(ctx, MEMBERS[Math.min(i, j)], w - 16, 20, "bold");
+        ctx.fillText(MEMBERS[Math.min(i, j)], x + w / 2, y + h / 2 - 14);
+        fitText(ctx, "+ " + MEMBERS[Math.max(i, j)], w - 16, 20, "bold");
+        ctx.fillText("+ " + MEMBERS[Math.max(i, j)], x + w / 2, y + h / 2 + 14);
+      }
+    }
+  }
+
+  // legend
+  ctx.textAlign = "left";
+  let lx = PAD; const ly = H - FOOT / 2;
+  RATINGS.forEach(r => {
+    ctx.fillStyle = r.color; roundRect(ctx, lx, ly - 14, 28, 28, 7); ctx.fill();
+    ctx.fillStyle = "#2b2b3a"; ctx.font = "22px system-ui, sans-serif";
+    ctx.fillText(r.label, lx + 38, ly);
+    lx += 38 + ctx.measureText(r.label).width + 36;
+  });
+  return c;
+}
+
+$("#saveBtn").addEventListener("click", () => {
+  const url = drawChart().toDataURL("image/png");
+  $("#preview").src = url;
+  $("#download").href = url;
+  $("#saved").showModal();
+});
+$("#closeSaved").addEventListener("click", () => $("#saved").close());
+$("#resetBtn").addEventListener("click", () => {
+  if (confirm("Clear all your ratings?")) { state = {}; persist(); render(); }
+});
+
+render();
+</script>
+</body>
+</html>
